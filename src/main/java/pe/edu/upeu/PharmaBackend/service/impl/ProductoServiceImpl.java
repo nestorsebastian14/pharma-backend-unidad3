@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import pe.edu.upeu.PharmaBackend.auditoria.EventoAuditoria;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upeu.PharmaBackend.dto.CategoriaResumenDTO;
 import pe.edu.upeu.PharmaBackend.dto.ProductoRequestDTO;
@@ -21,10 +23,12 @@ import pe.edu.upeu.PharmaBackend.service.service.ProductoService;
 public class ProductoServiceImpl implements ProductoService {
     private static final Logger LOG = LoggerFactory.getLogger(ProductoServiceImpl.class);
     private final ProductoRepository productoRepository;
+    private final ApplicationEventPublisher eventos;
     private final CategoriaRepository categoriaRepository;
 
-    public ProductoServiceImpl(ProductoRepository productoRepository, CategoriaRepository categoriaRepository){
+    public ProductoServiceImpl(ProductoRepository productoRepository, CategoriaRepository categoriaRepository, ApplicationEventPublisher eventos){
         this.productoRepository = productoRepository;
+        this.eventos = eventos;
         this.categoriaRepository = categoriaRepository;
     }
 
@@ -58,12 +62,14 @@ public class ProductoServiceImpl implements ProductoService {
         Producto producto = productoRepository.findById(aLong).orElseThrow(() ->
                 new RecursoNoEncontradoException("Producto no encontrado con id: " + aLong));
 
+        java.math.BigDecimal precioAnterior = producto.getPrecio();
         producto.setNombre(t.getNombre());
         producto.setPrecio(t.getPrecio());
         producto.setStock(t.getStock());
         producto.setCategoria(buscarCategoriaPorId(t.getCategoriaId()));
 
         Producto prodActualizada = productoRepository.save(producto);
+        if (precioAnterior.compareTo(prodActualizada.getPrecio()) != 0) eventos.publishEvent(EventoAuditoria.de("PRECIO_MODIFICADO", "Producto", prodActualizada.getId(), precioAnterior + " -> " + prodActualizada.getPrecio()));
         LOG.info("Producto id={} actualizado", prodActualizada.getId());
         return convertirResponse(prodActualizada);
     }
@@ -84,6 +90,7 @@ public class ProductoServiceImpl implements ProductoService {
         Producto producto = productoRepository.findById(aLong).orElseThrow(() ->
                 new RecursoNoEncontradoException("Producto no encontrado con id: " + aLong));
         productoRepository.delete(producto);
+        eventos.publishEvent(EventoAuditoria.de("PRODUCTO_ELIMINADO", "Producto", aLong, producto.getNombre()));
         LOG.info("Producto id={} eliminado", aLong);
     }
 
@@ -97,6 +104,13 @@ public class ProductoServiceImpl implements ProductoService {
                 .toList();
     }
 
+    @Transactional(readOnly=true)
+    public pe.edu.upeu.PharmaBackend.dto.PaginaResponseDTO<ProductoResponseDTO> listarPagina(int pagina,int tamanio,String orden,String direccion) {
+        var pageable=pe.edu.upeu.PharmaBackend.util.PaginacionUtil.construir(pagina,tamanio,orden,direccion,
+            java.util.Set.of("id","nombre","precio","stock","estado"),"nombre");
+        return pe.edu.upeu.PharmaBackend.dto.PaginaResponseDTO.de(productoRepository.findAll(pageable).map(this::convertirResponse));
+    }
+
     private ProductoResponseDTO convertirResponse(Producto producto){
         CategoriaResumenDTO categoriaResumen = producto.getCategoria() != null
                 ? new CategoriaResumenDTO(producto.getCategoria().getId(), producto.getCategoria().getNombre())
@@ -108,10 +122,11 @@ public class ProductoServiceImpl implements ProductoService {
                 producto.getPrecio(),
                 producto.getStock(),
                 producto.getEstado(),
-                producto.getId(),
-                producto.getNombre(),
+                producto.getCategoria().getId(),
+                producto.getCategoria().getNombre(),
                 producto.getFechaCreacion(),
-                producto.getFechaModificacion()
+                producto.getFechaModificacion(),
+                producto.getCreadoPor(), producto.getModificadoPor()
         );
     }
 }

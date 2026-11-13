@@ -97,7 +97,7 @@ public class SecurityConfig {
 
                         // Administracion de la seguridad
                         .requestMatchers("/api/v1/usuarios/**",
-                                "/api/v1/empleados/**", "/api/v1/roles/**")
+                                "/api/v1/empleados/**", "/api/v1/roles/**", "/api/v1/auditoria/**")
                         .hasAuthority(USUARIOS_ADMINISTRAR.name())
 
                         // Actuator: solo health es publico

@@ -6,6 +6,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import pe.edu.upeu.PharmaBackend.auditoria.EventoAuditoria;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upeu.PharmaBackend.dto.DetalleVentaRequestDTO;
 import pe.edu.upeu.PharmaBackend.dto.DetalleVentaResponseDTO;
@@ -35,6 +37,7 @@ public class VentaServiceImpl implements VentaService {
     private static final Logger log = LoggerFactory.getLogger(VentaServiceImpl.class);
 
     private final VentaRepository ventaRepository;
+    private final ApplicationEventPublisher eventos;
     private final ClienteRepository clienteRepository;
     private final ProductoRepository productoRepository;
 
@@ -44,11 +47,12 @@ public class VentaServiceImpl implements VentaService {
     public VentaServiceImpl(
             VentaRepository ventaRepository,
             ClienteRepository clienteRepository,
-            ProductoRepository productoRepository) {
+            ProductoRepository productoRepository, ApplicationEventPublisher eventos) {
 
         this.ventaRepository = ventaRepository;
         this.clienteRepository = clienteRepository;
         this.productoRepository = productoRepository;
+        this.eventos = eventos;
     }
 
     @Override
@@ -102,6 +106,7 @@ public class VentaServiceImpl implements VentaService {
         venta.setTotal(total);
 
         Venta guardada =ventaRepository.save(venta);
+        eventos.publishEvent(EventoAuditoria.de("VENTA_REGISTRADA", "Venta", guardada.getId(), "total="+guardada.getTotal()+" | items="+guardada.getDetalles().size()));
 
         return convertirResponse(guardada);
     }
@@ -173,6 +178,18 @@ public class VentaServiceImpl implements VentaService {
                 System.currentTimeMillis() - inicio);
 
         return resultado;
+    }
+
+    @Transactional(readOnly=true)
+    public pe.edu.upeu.PharmaBackend.dto.PaginaResponseDTO<VentaResponseDTO> buscarPagina(
+        Long clienteId, EstadoVenta estado, LocalDate desde,LocalDate hasta,int pagina,int tamanio,String ordenarPor,String direccion) {
+        if (desde!=null && hasta!=null && desde.isAfter(hasta))
+          throw new ReglaNegocioException("Rango de fechas inválido");
+        var paginacion=pe.edu.upeu.PharmaBackend.util.PaginacionUtil.construir(pagina,tamanio,ordenarPor,direccion,
+          CAMPOS_ORDENABLES,ORDEN_POR_DEFECTO);
+        return pe.edu.upeu.PharmaBackend.dto.PaginaResponseDTO.de(ventaRepository.buscarPagina(
+          clienteId,estado,desde==null?null:desde.atStartOfDay(),hasta==null?null:hasta.plusDays(1).atStartOfDay(),
+          paginacion).map(this::convertirResponse));
     }
 
     private Sort construirSort(String ordenarPor, String direccion) {

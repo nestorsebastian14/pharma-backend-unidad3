@@ -11,12 +11,18 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.data.annotation.CreatedBy; 
+import org.springframework.data.annotation.LastModifiedBy; 
+import org.springframework.data.jpa.domain.support.AuditingEntityListener; 
+
 @Entity
 @Table(name = "ventas")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
+
 public class Venta {
 
     @Id
@@ -63,4 +69,7 @@ public class Venta {
         detalles.add(detalle);
         detalle.setVenta(this);
     }
+    @CreatedBy 
+    @Column(name = "creado_por", length = 50, updatable = false) 
+    private String creadoPor; 
 }

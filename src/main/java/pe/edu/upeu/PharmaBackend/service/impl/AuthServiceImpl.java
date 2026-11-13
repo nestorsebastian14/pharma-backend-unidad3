@@ -7,6 +7,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.AuthenticationException;
+import pe.edu.upeu.PharmaBackend.auditoria.EventoAuditoria;
+import pe.edu.upeu.PharmaBackend.service.service.AuditoriaService;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.upeu.PharmaBackend.dto.auth.LoginRequestDTO;
 import pe.edu.upeu.PharmaBackend.dto.auth.LoginResponseDTO;
@@ -28,6 +31,7 @@ public class AuthServiceImpl implements AuthService {
             LoggerFactory.getLogger(AuthServiceImpl.class);
 
     private final AuthenticationManager authenticationManager;
+    private final AuditoriaService auditoriaService;
     private final JwtService jwtService;
     private final UsuarioRepository usuarioRepository;
     private final UsuarioMapper usuarioMapper;
@@ -36,28 +40,34 @@ public class AuthServiceImpl implements AuthService {
             AuthenticationManager authenticationManager,
             JwtService jwtService,
             UsuarioRepository usuarioRepository,
-            UsuarioMapper usuarioMapper) {
+            UsuarioMapper usuarioMapper, AuditoriaService auditoriaService) {
         this.authenticationManager = authenticationManager;
+        this.auditoriaService = auditoriaService;
         this.jwtService = jwtService;
         this.usuarioRepository = usuarioRepository;
         this.usuarioMapper = usuarioMapper;
     }
 
     @Override
-    @Transactional(readOnly = true)
     public LoginResponseDTO login(LoginRequestDTO request) {
 
         String username = request.getUsername().trim();
 
         log.info("Intento de inicio de sesión: usuario={}", username);
 
-        Authentication autenticacion = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(username, request.getPassword()));
+        Authentication autenticacion;
+        try {
+            autenticacion = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, request.getPassword()));
+        } catch (AuthenticationException ex) {
+            auditoriaService.registrar(EventoAuditoria.login("LOGIN_FALLIDO", username));
+            throw ex;
+        }
 
         UserDetails principal = (UserDetails) autenticacion.getPrincipal();
         Usuario usuario = buscar(principal.getUsername());
 
         String token = jwtService.generarToken(principal);
+        auditoriaService.registrar(EventoAuditoria.login("LOGIN_EXITOSO", username));
 
         List<String> roles = usuarioMapper.nombresRoles(usuario.getRoles());
 

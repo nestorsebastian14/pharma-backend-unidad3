@@ -1,7 +1,10 @@
 package pe.edu.upeu.PharmaBackend.entity;
+
 import jakarta.persistence.*;
 import lombok.*;
-
+import org.springframework.data.annotation.CreatedBy; 
+import org.springframework.data.annotation.LastModifiedBy; 
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
@@ -12,6 +15,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class Cliente {
 
     @Id
@@ -48,12 +52,21 @@ public class Cliente {
     @PrePersist
     public void prePersist() {
         this.fechaCreacion = LocalDateTime.now();
-        if(estado==null){
-            estado=true;
+        if (estado == null) {
+            estado = true;
         }
-    }@PreUpdate
+    }
+
+    @PreUpdate
     public void preUpdate() {
         this.fechaModificacion = LocalDateTime.now();
     }
+    @CreatedBy 
+    @Column(name = "creado_por", length = 50, updatable = false) 
+    private String creadoPor; 
+  
+    @LastModifiedBy 
+    @Column(name = "modificado_por", length = 50) 
+    private String modificadoPor; 
 
 }

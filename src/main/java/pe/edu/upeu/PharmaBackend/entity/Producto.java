@@ -1,6 +1,9 @@
 package pe.edu.upeu.PharmaBackend.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "productos")
 @Getter
 @Setter
@@ -17,11 +21,18 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Producto {
 
+    @CreatedBy
+    @Column(name="creado_por", length=50, updatable=false)
+    private String creadoPor;
+    @LastModifiedBy
+    @Column(name="modificado_por",length=50)
+    private String modificadoPor;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 150)
     private String nombre;
 
     @Column(nullable = false, precision = 10, scale = 2)
@@ -34,7 +45,7 @@ public class Producto {
     private Boolean estado = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_categoria", nullable = false)
+    @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
 
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
